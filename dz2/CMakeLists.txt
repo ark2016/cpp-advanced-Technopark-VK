@@ -11,3 +11,8 @@ add_executable(test_crew_members tests/crew_members.cpp units/unit.cpp units/cre
 add_executable(test_passengers tests/passengers.cpp units/unit.cpp units/passengers.cpp)
 add_executable(test_plane tests/plane.cpp units/unit.cpp units/crew_members.cpp units/passengers.cpp units/plane.cpp)
 
+# Enable coverage if requested
+if(COVERAGE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -g -O0")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+endif()
