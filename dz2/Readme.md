@@ -149,3 +149,69 @@ g++ -std=c++20 -O2 -fsanitize=address \
 - -1 балл: нечитаемый код, непонятные названия функций, переменных и т.п.
 - -2 балла: допущенные UB, "вылет" за границы массива (если вдруг не поймал санитайзер), прочие грубые логические ошибки.
 - -3 балла: код выполнен без учета абстракций, требуемых в задании.
+
+To check code coverage using your CMake setup and GCC, you can follow these steps. Code coverage will help you identify which parts of your code are being tested and which are not, allowing you to improve your test suite.
+
+### Step-by-Step Guide
+
+1. **Ensure GCC is Installed**:
+   Make sure you have GCC installed on your system. This approach relies on GCC's `gcov` and `lcov` tools to analyze code coverage.
+
+2. **Modify CMakeLists.txt for Coverage**:
+   Your `CMakeLists.txt` is already set up to handle code coverage with the `COVERAGE` option. Make sure you have the following lines:
+   ```cmake
+   if(COVERAGE)
+       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -g -O0")
+       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+   endif()
+   ```
+
+3. **Build Your Project with Coverage Enabled**:
+   Set the `COVERAGE` variable when you configure your project with CMake. You can do this from the command line:
+   ```bash
+   mkdir build
+   cd build
+   cmake -DCOVERAGE=ON ..
+   make
+   ```
+
+4. **Run Your Tests**:
+   Execute your test binaries. This will generate `.gcda` files, which are necessary for calculating coverage.
+   ```bash
+   ./test_crew_members
+   ./test_passengers
+   ./test_plane
+   ```
+
+5. **Generate Coverage Reports**:
+   - Use `lcov` to generate a coverage report. First, capture the coverage data:
+     ```bash
+     lcov --capture --directory . --output-file coverage.info
+     ```
+
+   - Filter out unnecessary system and test files to focus on your source code:
+     ```bash
+     lcov --remove coverage.info '/usr/*' '*/tests/*' --output-file coverage_filtered.info
+     ```
+
+   - Generate an HTML report with `genhtml`:
+     ```bash
+     genhtml coverage_filtered.info --output-directory out
+     ```
+
+6. **View Coverage Report**:
+   Open the generated `index.html` file in the `out` directory to view your code coverage report:
+   ```bash
+   xdg-open out/index.html  # For Linux
+   open out/index.html      # For macOS
+   ```
+
+### Additional Tips
+
+- **Continuous Integration**: Consider integrating this process into your CI pipeline to automatically generate coverage reports on every push or pull request.
+  
+- **Improving Coverage**: Use the coverage report to identify untested areas and write additional tests to cover them.
+
+- **Other Tools**: If you prefer other tools, `gcovr` is another option that can generate coverage reports and is compatible with GCC.
+
+By following these steps, you can effectively measure the coverage of your unit tests and ensure that your code is thoroughly tested.
