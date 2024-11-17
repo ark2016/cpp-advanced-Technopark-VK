@@ -277,6 +277,6 @@ double Plane::get_total_hand_luggage_weight() const {
     return total;
 }
 
-void Plane::print_segment_load() const {
+//void Plane::print_segment_load() const {
     // Implement if needed for debugging or output
-}
+//}

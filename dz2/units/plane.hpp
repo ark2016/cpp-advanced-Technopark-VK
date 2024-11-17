@@ -79,23 +79,25 @@ private:
 
 public:
     Plane();
-
     ~Plane();
 
     void set_first_class_segment(FirstClassSegment *segment);
-
     void set_business_class_segment(BusinessClassSegment *segment);
-
     void set_economy_class_segment(EconomyClassSegment *segment);
 
     bool add_unit(Unit *unit);
 
     double get_total_luggage_weight() const;
-
     double get_total_hand_luggage_weight() const;
+
+    // New public methods to access segments
+    FirstClassSegment* get_first_class_segment() const { return first_class_segment_; }
+    BusinessClassSegment* get_business_class_segment() const { return business_class_segment_; }
+    EconomyClassSegment* get_economy_class_segment() const { return economy_class_segment_; }
 
     // For the output
     void print_segment_load() const;
 };
+
 
 #endif // PLANE_HPP
