@@ -7,7 +7,6 @@ int main() {
     std::vector<double> hand_luggage = {5.0};
     std::vector<double> luggage = {20.0};
 
-    // Test EconomyPassenger
     EconomyPassenger *p1 = new EconomyPassenger(hand_luggage, luggage);
     assert(p1->get_class_type() == PassengerClassType::ECONOMY);
     assert(p1->get_class_type_string() == "ECONOMY");
@@ -16,7 +15,6 @@ int main() {
     assert(p1->get_hand_luggage_weights() == hand_luggage);
     assert(p1->get_luggage_weights() == luggage);
 
-    // Test BusinessPassenger
     BusinessPassenger *p2 = new BusinessPassenger({10.0, 5.0}, {30.0, 10.0});
     assert(p2->get_class_type() == PassengerClassType::BUSINESS);
     assert(p2->get_class_type_string() == "BUSINESS");
@@ -25,7 +23,6 @@ int main() {
     assert(p2->get_hand_luggage_weights() == std::vector<double>({10.0, 5.0}));
     assert(p2->get_luggage_weights() == std::vector<double>({30.0, 10.0}));
 
-    // Test FirstClassPassenger
     FirstClassPassenger *p3 = new FirstClassPassenger({20.0, 20.0}, {50.0, 40.0});
     assert(p3->get_class_type() == PassengerClassType::FIRST_CLASS);
     assert(p3->get_class_type_string() == "FIRST CLASS");
@@ -34,14 +31,13 @@ int main() {
     assert(p3->get_hand_luggage_weights() == std::vector<double>({20.0, 20.0}));
     assert(p3->get_luggage_weights() == std::vector<double>({50.0, 40.0}));
 
-    // Test with empty vectors
+
     EconomyPassenger *p4 = new EconomyPassenger({}, {});
     assert(p4->get_total_hand_luggage_weight() == 0.0);
     assert(p4->get_total_luggage_weight() == 0.0);
     assert(p4->get_hand_luggage_weights().empty());
     assert(p4->get_luggage_weights().empty());
 
-    // Cleanup
     delete p1;
     delete p2;
     delete p3;

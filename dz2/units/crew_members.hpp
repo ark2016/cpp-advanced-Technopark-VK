@@ -27,7 +27,6 @@ public:
     double get_total_luggage_weight() const override;
 };
 
-// Specific crew member classes
 class Pilot : public CrewMember {
 public:
     Pilot();

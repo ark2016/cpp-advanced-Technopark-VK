@@ -15,7 +15,6 @@ public:
 
     size_t get_id() const;
 
-    // For O(1) methods
     virtual double get_total_hand_luggage_weight() const = 0;
 
     virtual double get_total_luggage_weight() const = 0;
