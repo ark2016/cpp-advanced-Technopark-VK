@@ -1,5 +1,6 @@
 #include "../units/crew_members.hpp"
 #include <cassert>
+#include <iostream>
 
 int main() {
     Pilot *pilot1 = new Pilot();
@@ -16,6 +17,8 @@ int main() {
 
     delete pilot1;
     delete fa1;
+
+    std::cout << "All tests passed!" << std::endl;
 
     return 0;
 }

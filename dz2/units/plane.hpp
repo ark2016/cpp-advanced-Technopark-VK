@@ -15,7 +15,7 @@ protected:
     double max_total_weight_;
     double current_hand_luggage_weight_;
     double current_luggage_weight_;
-    std::vector<Unit *> units_; // Passengers in this segment
+    std::vector<Unit *> units_;
 
 public:
     PlaneSegment(size_t max_passengers, double max_total_weight);
@@ -67,11 +67,9 @@ private:
     EconomyClassSegment *economy_class_segment_;
     std::vector<CrewMember *> crew_members_;
 
-    // Baggage capacities
     double economy_baggage_capacity_;
     double economy_current_baggage_weight_;
 
-    // Crew capacities
     size_t pilot_count_;
     size_t max_pilot_count_;
     size_t flight_attendant_count_;
@@ -90,12 +88,10 @@ public:
     double get_total_luggage_weight() const;
     double get_total_hand_luggage_weight() const;
 
-    // New public methods to access segments
     FirstClassSegment* get_first_class_segment() const { return first_class_segment_; }
     BusinessClassSegment* get_business_class_segment() const { return business_class_segment_; }
     EconomyClassSegment* get_economy_class_segment() const { return economy_class_segment_; }
 
-    // For the output
     void print_segment_load() const;
 };
 

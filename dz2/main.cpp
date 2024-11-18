@@ -8,12 +8,9 @@
 
 int main() {
     Plane plane;
-
-    // Placeholder variables
     std::string line;
     int line_num = 0;
 
-    // The first 11 entries are special
     while (std::getline(std::cin, line)) {
         if (line.empty())
             continue;
@@ -40,13 +37,11 @@ int main() {
             Unit *unit = new FlightAttendant();
             plane.add_unit(unit);
         } else {
-            // Now we handle passengers
             std::vector<double> hand_luggage_weights;
             std::vector<double> luggage_weights;
 
             double weight;
             if (type == "ECONOMY") {
-                // Read up to 1 hand luggage weight and up to 1 luggage weight
                 if (iss >> weight) {
                     hand_luggage_weights.push_back(weight);
                 }
@@ -56,7 +51,6 @@ int main() {
                 Unit *passenger = new EconomyPassenger(hand_luggage_weights, luggage_weights);
                 plane.add_unit(passenger);
             } else if (type == "BUSINESS") {
-                // Read up to 2 hand luggage weights and up to 2 luggage weights
                 if (iss >> weight) {
                     hand_luggage_weights.push_back(weight);
                 }
@@ -72,7 +66,6 @@ int main() {
                 Unit *passenger = new BusinessPassenger(hand_luggage_weights, luggage_weights);
                 plane.add_unit(passenger);
             } else if (type == "FIRST_CLASS") {
-                // Read up to 2 hand luggage weights and up to 2 luggage weights
                 if (iss >> weight) {
                     hand_luggage_weights.push_back(weight);
                 }
@@ -92,7 +85,6 @@ int main() {
         line_num++;
     }
 
-    // Output the total luggage weights if necessary
     // std::cout << "Total luggage weight: " << plane.get_total_luggage_weight() << std::endl;
     // std::cout << "Total hand luggage weight: " << plane.get_total_hand_luggage_weight() << std::endl;
 

@@ -15,7 +15,6 @@ double CrewMember::get_total_luggage_weight() const {
     return 0.0;
 }
 
-// Pilot
 
 Pilot::Pilot() : CrewMember(CrewMemberType::PILOT) {
 }
@@ -24,7 +23,6 @@ std::string Pilot::get_type_string() const {
     return "PILOT";
 }
 
-// FlightAttendant
 
 FlightAttendant::FlightAttendant() : CrewMember(CrewMemberType::FLIGHT_ATTENDANT) {
 }
