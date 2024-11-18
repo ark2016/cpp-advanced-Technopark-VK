@@ -139,13 +139,13 @@ LRU кэш традиционно реализуется на паре: `unorder
    ./test_lru.cpp
    ```
 
-     ```bash
-     lcov --capture --directory . --output-file coverage.info
-     ```
-     
-     ```bash
-     genhtml coverage.info --output-directory coverage
-     ```
+   ```bash
+   lcov --capture --directory . --output-file coverage.info
+   ```
+  
+   ```bash
+   genhtml coverage.info --output-directory coverage
+   ```
      
    ```bash
    xdg-open out/index.html
