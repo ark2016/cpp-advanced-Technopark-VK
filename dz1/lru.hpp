@@ -1,114 +1,112 @@
 // lru.hpp
-
-#pragma once
+#ifndef LRU_HPP
+#define LRU_HPP
 
 #include <unordered_map>
+#include <list>
+#include <vector>
+#include <string>
+#include <cstddef>
+#include <memory>
+#include <cstring>
 #include "intrusive_list.hpp"
 
-#include <cstddef>
-#include <functional>
-#include <utility>
-
-template <
-    typename Key,
-    typename Value,
-    typename Hash = std::hash<Key>,
-    typename KeyEqual = std::equal_to<Key>
->
+template <typename Key, typename Value>
 class LRUCache {
 private:
-    struct Node : public ListNode<Node> {
+    struct CacheEntry : public IntrusiveListNode<CacheEntry> {
         Key key;
         Value value;
-        std::size_t key_size;
-        std::size_t value_size;
+        size_t size_bytes;
 
-        Node(const Key& k, const Value& v, std::size_t k_size, std::size_t v_size)
-            : key(k), value(v), key_size(k_size), value_size(v_size) {}
+        CacheEntry(const Key& k, const Value& v, size_t size)
+                : key(k), value(v), size_bytes(size) {}
     };
 
-    std::unordered_map<Key, Node*, Hash, KeyEqual> cache_map;
-    IntrusiveList<Node> cache_list;
-    std::size_t capacity;
-    std::size_t byte_capacity;
-    std::size_t current_size;
-    std::size_t current_byte_size;
+    using ListType = IntrusiveList<CacheEntry>;
+    using ListIterator = ListType::iterator;
+
+    size_t max_entries;
+    size_t max_size_bytes;
+    size_t current_size_bytes;
+
+    ListType list;
+    std::unordered_map<Key, CacheEntry*> map;
 
 public:
-    LRUCache(std::size_t capacity, std::size_t byte_capacity)
-        : capacity(capacity), byte_capacity(byte_capacity), current_size(0), current_byte_size(0) {}
+    LRUCache(size_t max_n, size_t max_b)
+            : max_entries(max_n), max_size_bytes(max_b), current_size_bytes(0) {}
 
     ~LRUCache() {
         clear();
     }
 
-    LRUCache(const LRUCache&) = delete;
-    LRUCache& operator=(const LRUCache&) = delete;
-
-    bool put(const Key& key, const Value& value, std::size_t key_size, std::size_t value_size) {
-        if (key_size + value_size > byte_capacity || capacity == 0) {
-            return false;
-        }
-
-        auto it = cache_map.find(key);
-        if (it != cache_map.end()) {
-            Node* node = it->second;
-            current_byte_size -= node->key_size + node->value_size;
-            node->value = value;
-            node->key_size = key_size;
-            node->value_size = value_size;
-            current_byte_size += key_size + value_size;
-            cache_list.erase(cache_list.iterator(node));
-            cache_list.push_front(*node);
-        } else {
-            while ( (current_size >= capacity) || (current_byte_size + key_size + value_size > byte_capacity) ) {
-                if (cache_list.empty()) {
-                    return false;
-                }
-                Node& old_node = cache_list.back();
-                cache_map.erase(old_node.key);
-                current_byte_size -= old_node.key_size + old_node.value_size;
-                cache_list.pop_back();
-                delete &old_node;
-                --current_size;
-            }
-            Node* node = new Node(key, value, key_size, value_size);
-            cache_list.push_front(*node);
-            cache_map[key] = node;
-            current_byte_size += key_size + value_size;
-            ++current_size;
-        }
-
-        return true;
+    bool exists(const Key& key) {
+        return map.find(key) != map.end();
     }
 
     bool get(const Key& key, Value& value) {
-        auto it = cache_map.find(key);
-        if (it == cache_map.end()) {
+        auto it = map.find(key);
+        if (it == map.end()) {
             return false;
         }
-        Node* node = it->second;
-        cache_list.erase(cache_list.iterator(node));
-        cache_list.push_front(*node);
-        value = node->value;
+        CacheEntry* entry = it->second;
+        list.move_to_front(*entry);
+        value = entry->value;
+        return true;
+    }
+
+    bool put(const Key& key, const Value& value, size_t entry_size) {
+        if (entry_size > max_size_bytes || max_entries == 0) {
+            return false;
+        }
+
+        if (map.find(key) != map.end()) {
+            CacheEntry* existing = map[key];
+            current_size_bytes -= existing->size_bytes;
+            existing->value = value;
+            existing->size_bytes = entry_size;
+            current_size_bytes += entry_size;
+            list.move_to_front(*existing);
+        } else {
+            // Evict while necessary
+            while ((map.size() >= max_entries || current_size_bytes + entry_size > max_size_bytes) && !list.empty()) {
+                CacheEntry* old = list.get_back();
+                map.erase(old->key);
+                current_size_bytes -= old->size_bytes;
+                list.pop_back();
+                delete old;
+            }
+
+            if (map.size() >= max_entries || current_size_bytes + entry_size > max_size_bytes) {
+                return false;
+            }
+
+            CacheEntry* new_entry = new CacheEntry(key, value, entry_size);
+            list.push_front(*new_entry);
+            map[key] = new_entry;
+            current_size_bytes += entry_size;
+        }
+
         return true;
     }
 
     void clear() {
-        for (auto& pair : cache_map) {
+        for (auto& pair : map) {
             delete pair.second;
         }
-        cache_map.clear();
-        cache_list.clear();
-        current_size = 0;
-        current_byte_size = 0;
+        map.clear();
+        list.clear();
+        current_size_bytes = 0;
     }
 
-    std::size_t size() const {
-        return current_size;
+    size_t size() const {
+        return map.size();
     }
 
-    std::size_t size_bytes() const {
-        return current_byte_size;
+    size_t size_bytes() const {
+        return current_size_bytes;
     }
 };
+
+#endif // LRU_HPP

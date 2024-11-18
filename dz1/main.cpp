@@ -1,109 +1,83 @@
 // main.cpp
-
-#include <iostream>
-#include <string>
-#include <sstream>
-#include <vector>
-#include <fstream>
+#include <bits/stdc++.h>
 #include "lru.hpp"
 
-bool is_valid_q(const std::string& q) {
-    for (char c : q) {
-        if (c == '\n' || c == '\r' || c == '\t' || c == '\0' || c == ' ') {
-            return false;
-        }
-    }
-    for (unsigned char c : q) {
-        if (static_cast<unsigned char>(c) >= 0x80 && static_cast<unsigned char>(c) <= 0xBF) {
-            return false;
-        }
-    }
-    return true;
+// Function to calculate size in bytes of a key-value pair
+size_t calculate_entry_size(const std::string& key, const std::vector<float>& embed) {
+    return key.size() + embed.size() * sizeof(float);
 }
 
-bool parse_floats(const std::string& s, std::vector<float>& floats) {
-    std::istringstream iss(s);
-    float f;
-    while (iss >> f) {
-        floats.push_back(f);
-    }
-    if (floats.size() != 64) {
+// Function to parse a line of type (a)
+bool parse_line_a(const std::string& line, std::string& q, std::vector<float>& embed) {
+    size_t tab_pos = line.find('\t');
+    if (tab_pos == std::string::npos) {
         return false;
     }
-    std::string remaining;
-    if (iss >> remaining) {
-        return false;
+    q = line.substr(0, tab_pos);
+    std::string embed_str = line.substr(tab_pos + 1);
+    std::istringstream iss(embed_str);
+    float num;
+    while (iss >> num) {
+        embed.push_back(num);
     }
+    return !embed.empty();
+}
+
+// Function to parse a line of type (b)
+bool parse_line_b(const std::string& line, std::string& q) {
+    q = line;
     return true;
 }
 
 int main() {
-    std::size_t N;
-    std::size_t Size;
+    std::ios::sync_with_stdio(false);
+    std::cin.tie(nullptr);
 
-    if (!(std::cin >> N >> Size)) {
-        std::cerr << "Failed to read N and Size\n";
-        return 1;
-    }
-    std::string line;
-    std::getline(std::cin, line);
+    size_t N;
+    size_t Size;
+    std::cin >> N >> Size;
+    std::cin.ignore(); // ignore the remaining newline after Size
 
     LRUCache<std::string, std::vector<float>> cache(N, Size);
 
+    std::string line;
     while (std::getline(std::cin, line)) {
-        if (line.empty()) {
-            continue;
-        }
-
-        std::string key;
-        std::string rest;
-
-        std::size_t tab_pos = line.find('\t');
-        if (tab_pos != std::string::npos) {
-            key = line.substr(0, tab_pos);
-            rest = line.substr(tab_pos + 1);
-
-            if (!is_valid_q(key)) {
-                std::cout << "!STORERR!" << std::endl;
-                continue;
-            }
-
+        if (line.empty()) continue;
+        if (line.find('\t') != std::string::npos) {
+            // Type (a)
+            std::string q;
             std::vector<float> embed;
-            if (!parse_floats(rest, embed)) {
-                std::cout << "!STORERR!" << std::endl;
-                continue;
-            }
-
-            std::size_t key_size = key.size();
-            std::size_t value_size = embed.size() * sizeof(float);
-
-            bool res = cache.put(key, embed, key_size, value_size);
-            if (res) {
-                std::cout << "!STORED!" << std::endl;
+            if (parse_line_a(line, q, embed)) {
+                size_t entry_size = calculate_entry_size(q, embed);
+                if (cache.put(q, embed, entry_size)) {
+                    std::cout << "!STORED!\n";
+                } else {
+                    std::cout << "!STORERR!\n";
+                }
             } else {
-                std::cout << "!STORERR!" << std::endl;
+                std::cout << "!STORERR!\n";
             }
         } else {
-            key = line;
-            if (!is_valid_q(key)) {
-                std::cout << "!NOEMBED!" << std::endl;
-                continue;
-            }
-
-            std::vector<float> embed;
-            bool res = cache.get(key, embed);
-            if (res) {
-                for (size_t i = 0; i < embed.size(); ++i) {
-                    if (i > 0) {
-                        std::cout << ' ';
+            // Type (b)
+            std::string q;
+            if (parse_line_b(line, q)) {
+                std::vector<float> embed;
+                if (cache.get(q, embed)) {
+                    std::ostringstream oss;
+                    for (size_t i = 0; i < embed.size(); ++i) {
+                        if (i > 0) oss << ' ';
+                        oss << embed[i];
                     }
-                    std::cout << embed[i];
+                    oss << '\n';
+                    std::cout << oss.str();
+                } else {
+                    std::cout << "!NOEMBED!\n";
                 }
-                std::cout << std::endl;
             } else {
-                std::cout << "!NOEMBED!" << std::endl;
+                std::cout << "!NOEMBED!\n";
             }
         }
     }
+
     return 0;
 }

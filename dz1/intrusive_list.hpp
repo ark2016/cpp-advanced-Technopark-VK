@@ -1,22 +1,26 @@
 // intrusive_list.hpp
-
-#pragma once
+#ifndef INTRUSIVE_LIST_HPP
+#define INTRUSIVE_LIST_HPP
 
 #include <iterator>
 #include <cstddef>
+#include <cassert>
 
 template <typename T>
-struct ListNode {
-    T* next;
-    T* prev;
-
-    ListNode() : next(nullptr), prev(nullptr) {}
+struct IntrusiveListNode {
+    T* prev = nullptr;
+    T* next = nullptr;
 };
 
 template <typename T>
 class IntrusiveList {
+private:
+    T* head;
+    T* tail;
+    size_t list_size;
+
 public:
-    IntrusiveList() : head(nullptr), tail(nullptr), sz(0) {}
+    IntrusiveList() : head(nullptr), tail(nullptr), list_size(0) {}
 
     ~IntrusiveList() {
         clear();
@@ -25,300 +29,156 @@ public:
     IntrusiveList(const IntrusiveList&) = delete;
     IntrusiveList& operator=(const IntrusiveList&) = delete;
 
-    IntrusiveList(IntrusiveList&& other) : head(other.head), tail(other.tail), sz(other.sz) {
-        other.head = nullptr;
-        other.tail = nullptr;
-        other.sz = 0;
+    void push_front(T& node) {
+        node.next = head;
+        node.prev = nullptr;
+        if (head)
+            head->prev = &node;
+        head = &node;
+        if (!tail)
+            tail = head;
+        ++list_size;
     }
 
-    IntrusiveList& operator=(IntrusiveList&& other) {
-        if (this != &other) {
-            clear();
-            head = other.head;
-            tail = other.tail;
-            sz = other.sz;
-            other.head = nullptr;
-            other.tail = nullptr;
-            other.sz = 0;
-        }
-        return *this;
+    void move_to_front(T& node) {
+        if (&node == head) return;
+        // Remove node
+        if (node.prev)
+            node.prev->next = node.next;
+        if (node.next)
+            node.next->prev = node.prev;
+        if (&node == tail)
+            tail = node.prev;
+        // Insert at front
+        node.next = head;
+        node.prev = nullptr;
+        if (head)
+            head->prev = &node;
+        head = &node;
+    }
+
+    void pop_back() {
+        if (!tail) return;
+        T* old_tail = tail;
+        tail = tail->prev;
+        if (tail)
+            tail->next = nullptr;
+        else
+            head = nullptr;
+        old_tail->prev = nullptr;
+        old_tail->next = nullptr;
+        --list_size;
+    }
+
+    T* get_back() const {
+        return tail;
     }
 
     bool empty() const {
-        return sz == 0;
+        return list_size == 0;
     }
 
-    std::size_t size() const {
-        return sz;
+    size_t size() const {
+        return list_size;
     }
 
     void clear() {
         head = nullptr;
         tail = nullptr;
-        sz = 0;
+        list_size = 0;
     }
 
-    T& front() {
-        return *head;
-    }
+    // Iterator implementation
+    class iterator {
+    private:
+        T* current;
 
-    const T& front() const {
-        return *head;
-    }
-
-    T& back() {
-        return *tail;
-    }
-
-    const T& back() const {
-        return *tail;
-    }
-
-    void push_front(T& element) {
-        insert(begin(), element);
-    }
-
-    void push_back(T& element) {
-        insert(end(), element);
-    }
-
-    void pop_front() {
-        erase(begin());
-    }
-
-    void pop_back() {
-        erase(--end());
-    }
-
-    class iterator : public std::iterator<std::bidirectional_iterator_tag, T> {
     public:
-        iterator(T* node = nullptr) : node(node) {}
+        using iterator_category = std::bidirectional_iterator_tag;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using pointer = T*;
+        using reference = T&;
 
-        T& operator*() const {
-            return *node;
-        }
+        iterator(T* node) : current(node) {}
 
-        T* operator->() const {
-            return node;
-        }
+        reference operator*() const { return *current; }
+        pointer operator->() const { return current; }
 
         iterator& operator++() {
-            node = node->next;
+            current = current->next;
             return *this;
         }
 
         iterator operator++(int) {
-            iterator tmp(*this);
-            node = node->next;
+            iterator tmp = *this;
+            current = current->next;
             return tmp;
         }
 
         iterator& operator--() {
-            node = node->prev;
+            current = current->prev;
             return *this;
         }
 
         iterator operator--(int) {
-            iterator tmp(*this);
-            node = node->prev;
+            iterator tmp = *this;
+            current = current->prev;
             return tmp;
         }
 
-        bool operator==(const iterator& other) const {
-            return node == other.node;
-        }
-
-        bool operator!=(const iterator& other) const {
-            return node != other.node;
-        }
-
-        T* get() const {
-            return node;
-        }
-
-    private:
-        T* node;
+        bool operator==(const iterator& other) const { return current == other.current; }
+        bool operator!=(const iterator& other) const { return current != other.current; }
     };
 
-    class const_iterator : public std::iterator<std::bidirectional_iterator_tag, const T> {
+    iterator begin() { return iterator(head); }
+    iterator end() { return iterator(nullptr); }
+
+    // Const iterator
+    class const_iterator {
+    private:
+        const T* current;
+
     public:
-        const_iterator(const T* node = nullptr) : node(node) {}
+        using iterator_category = std::bidirectional_iterator_tag;
+        using value_type = const T;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const T*;
+        using reference = const T&;
 
-        const T& operator*() const {
-            return *node;
-        }
+        const_iterator(const T* node) : current(node) {}
 
-        const T* operator->() const {
-            return node;
-        }
+        reference operator*() const { return *current; }
+        pointer operator->() const { return current; }
 
         const_iterator& operator++() {
-            node = node->next;
+            current = current->next;
             return *this;
         }
 
         const_iterator operator++(int) {
-            const_iterator tmp(*this);
-            node = node->next;
+            const_iterator tmp = *this;
+            current = current->next;
             return tmp;
         }
 
         const_iterator& operator--() {
-            node = node->prev;
+            current = current->prev;
             return *this;
         }
 
         const_iterator operator--(int) {
-            const_iterator tmp(*this);
-            node = node->prev;
+            const_iterator tmp = *this;
+            current = current->prev;
             return tmp;
         }
 
-        bool operator==(const const_iterator& other) const {
-            return node == other.node;
-        }
-
-        bool operator!=(const const_iterator& other) const {
-            return node != other.node;
-        }
-
-        const T* get() const {
-            return node;
-        }
-
-    private:
-        const T* node;
+        bool operator==(const const_iterator& other) const { return current == other.current; }
+        bool operator!=(const const_iterator& other) const { return current != other.current; }
     };
 
-    iterator begin() {
-        return iterator(head);
-    }
-
-    const_iterator begin() const {
-        return const_iterator(head);
-    }
-
-    iterator end() {
-        return iterator(nullptr);
-    }
-
-    const_iterator end() const {
-        return const_iterator(nullptr);
-    }
-
-    iterator insert(iterator pos, T& element) {
-        T* node = &element;
-        if (node->next || node->prev || node == head) {
-            return iterator(node);
-        }
-
-        T* curr = pos.get();
-
-        node->next = curr;
-        if (curr) {
-            node->prev = curr->prev;
-            if (curr->prev) {
-                curr->prev->next = node;
-            } else {
-                head = node;
-            }
-            curr->prev = node;
-        } else {
-            node->prev = tail;
-            if (tail) {
-                tail->next = node;
-            } else {
-                head = node;
-            }
-            tail = node;
-        }
-
-        ++sz;
-        return iterator(node);
-    }
-
-    iterator erase(iterator pos) {
-        T* node = pos.get();
-        if (!node) {
-            return end();
-        }
-
-        T* next_node = node->next;
-
-        if (node->prev) {
-            node->prev->next = node->next;
-        } else {
-            head = node->next;
-        }
-
-        if (node->next) {
-            node->next->prev = node->prev;
-        } else {
-            tail = node->prev;
-        }
-
-        node->next = nullptr;
-        node->prev = nullptr;
-
-        --sz;
-        return iterator(next_node);
-    }
-
-    void splice(iterator pos, IntrusiveList& other, iterator first, iterator last) {
-        if (first == last) {
-            return;
-        }
-
-        T* first_node = first.get();
-        T* last_node = last.get() ? last.get()->prev : other.tail;
-
-        if (first_node->prev) {
-            first_node->prev->next = last.get();
-        } else {
-            other.head = last.get();
-        }
-
-        if (last.get()) {
-            last.get()->prev = first_node->prev;
-        } else {
-            other.tail = first_node->prev;
-        }
-
-        T* curr = pos.get();
-
-        if (curr) {
-            T* prev_node = curr->prev;
-            if (prev_node) {
-                prev_node->next = first_node;
-            } else {
-                head = first_node;
-            }
-            first_node->prev = prev_node;
-            curr->prev = last_node;
-            last_node->next = curr;
-        } else {
-            if (tail) {
-                tail->next = first_node;
-                first_node->prev = tail;
-            } else {
-                head = first_node;
-                first_node->prev = nullptr;
-            }
-            tail = last_node;
-            last_node->next = nullptr;
-        }
-
-        std::size_t n = 0;
-        for (T* node = first_node;; node = node->next) {
-            ++n;
-            if (node == last_node) break;
-        }
-        other.sz -= n;
-        sz += n;
-    }
-
-private:
-    T* head;
-    T* tail;
-    std::size_t sz;
+    const_iterator begin() const { return const_iterator(head); }
+    const_iterator end() const { return const_iterator(nullptr); }
 };
+
+#endif // INTRUSIVE_LIST_HPP
