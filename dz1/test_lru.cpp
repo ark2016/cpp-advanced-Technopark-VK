@@ -1,60 +1,90 @@
-// test_lru.cpp
-#include <bits/stdc++.h>
 #include "lru.hpp"
 #include <cassert>
+#include <iostream>
+#include <string>
 
 int main() {
-    // Create a cache with max 2 entries and 100 bytes
-    LRUCache<std::string, std::vector<float>> cache(2, 100);
+    LRUCache<int, std::string> cache(3, 100);
 
-    // Test insertion
-    std::vector<float> embed1 = {1.0f, 2.0f, 3.0f};
-    size_t size1 = 5 + embed1.size() * sizeof(float); // "key1" + embed
-    assert(cache.put("key1", embed1, size1));
-    assert(cache.size() == 1);
-    assert(cache.size_bytes() == size1);
+    // Test putting and getting values
+    assert(cache.put(1, "value1", 10));
+    assert(cache.put(2, "value2", 20));
+    assert(cache.put(3, "value3", 30));
 
-    std::vector<float> embed2 = {4.0f, 5.0f};
-    size_t size2 = 5 + embed2.size() * sizeof(float);
-    assert(cache.put("key2", embed2, size2));
-    assert(cache.size() == 2);
-    assert(cache.size_bytes() == size1 + size2);
+    std::string value;
+    assert(cache.get(1, value));
+    assert(value == "value1");
 
-    // Test retrieval
-    std::vector<float> retrieved;
-    assert(cache.get("key1", retrieved));
-    assert(retrieved == embed1);
+    assert(cache.get(2, value));
+    assert(value == "value2");
 
-    // Test LRU order by adding a new entry which causes eviction
-    std::vector<float> embed3 = {6.0f};
-    size_t size3 = 5 + embed3.size() * sizeof(float);
-    assert(cache.put("key3", embed3, size3)); // Should evict key2
-    assert(cache.size() == 2);
-    assert(cache.size_bytes() == size1 + size3);
-    assert(!cache.exists("key2"));
-    assert(cache.exists("key1"));
-    assert(cache.exists("key3"));
+    assert(cache.get(3, value));
+    assert(value == "value3");
 
-    // Test updating existing entry
-    std::vector<float> embed1_new = {7.0f, 8.0f};
-    size_t size1_new = 5 + embed1_new.size() * sizeof(float);
-    assert(cache.put("key1", embed1_new, size1_new));
-    assert(cache.size() == 2);
-    assert(cache.size_bytes() == size1_new + size3);
-    assert(cache.get("key1", retrieved));
-    assert(retrieved == embed1_new);
+    // Test eviction by size
+    LRUCache<int, std::string> cache_size(3, 50);
+    assert(cache_size.put(1, "value1", 10));
+    assert(cache_size.put(2, "value2", 20));
+    assert(cache_size.put(3, "value3", 30));
 
-    // Test eviction when size exceeds
-    std::vector<float> embed4 = std::vector<float>(50, 9.0f); // Large embed
-    size_t size4 = 5 + embed4.size() * sizeof(float);
-    assert(!cache.put("key4", embed4, size4)); // Should not insert
-    assert(cache.size() == 2);
-    assert(!cache.exists("key4"));
+    // Adding a new entry that exceeds the size limit
+    assert(cache_size.put(4, "value4", 40));
 
-    // Clear cache
-    cache.clear();
-    assert(cache.empty());
+    assert(!cache_size.get(1, value));
+    assert(value != "value1");
 
-    std::cout << "All LRUCache tests passed!\n";
+    assert(!cache_size.get(2, value));
+    assert(value != "value2");
+
+    assert(!cache_size.get(3, value));
+    assert(value == "value3");
+
+    assert(cache_size.get(4, value));
+
+    // Test eviction by count
+    LRUCache<int, std::string> cache_count(2, 100);
+    assert(cache_count.put(1, "value1", 10));
+    assert(cache_count.put(2, "value2", 20));
+    assert(cache_count.put(3, "value3", 30));
+
+    assert(!cache_count.get(1, value));
+
+    assert(cache_count.get(2, value));
+    assert(value == "value2");
+
+    assert(cache_count.get(3, value));
+    assert(value == "value3");
+
+    // Test updating an existing entry
+    LRUCache<int, std::string> cache_update(3, 100);
+    assert(cache_update.put(1, "value1", 10));
+    assert(cache_update.put(1, "value1_updated", 15));
+
+    assert(cache_update.get(1, value));
+    assert(value == "value1_updated");
+    assert(cache_update.size_bytes() == 15);
+
+    // Test clearing the cache
+    LRUCache<int, std::string> cache_clear(3, 100);
+    assert(cache_clear.put(1, "value1", 10));
+    assert(cache_clear.put(2, "value2", 20));
+
+    cache_clear.clear();
+
+    assert(cache_clear.size() == 0);
+    assert(cache_clear.size_bytes() == 0);
+
+    assert(!cache_clear.get(1, value));
+    assert(!cache_clear.get(2, value));
+
+    // Test existence check
+    LRUCache<int, std::string> cache_exists(3, 100);
+    assert(cache_exists.put(1, "value1", 10));
+    assert(cache_exists.exists(1));
+    assert(!cache_exists.exists(2));
+
+    std::cout << "All tests passed!" << std::endl;
+
     return 0;
 }
+
