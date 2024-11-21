@@ -40,6 +40,8 @@ int main() {
     std::cout << our_to_string(1.0f) << std::endl;
     std::cout << our_to_string(std::numeric_limits<double>::max()) << std::endl;
     std::cout << our_to_string("Lorem ipsum dolor sit amet, consectetur adipiscing elit") << std::endl;
+//    int a = 42;
+//    std::cout << our_to_string(&a) << std::endl;
     return 0;
 }
 /*
