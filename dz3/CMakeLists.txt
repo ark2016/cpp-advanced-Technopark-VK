@@ -1,15 +1,34 @@
 cmake_minimum_required(VERSION 3.10)
-project(boost_fusion_serialize_example LANGUAGES CXX)
+project(dz3)
 
-set(CMAKE_CXX_STANDARD 17)
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Boost REQUIRED)
+# Find required packages
+find_package(Boost 1.83 REQUIRED)
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
-add_executable(boost_fusion_serialize_example main.cpp)
-target_include_directories(boost_fusion_serialize_example PRIVATE 
-    ${Boost_INCLUDE_DIRS}
-    ${nlohmann_json_INCLUDE_DIRS}
+# Add executable
+add_executable(dz3 main.cpp)
+
+# Link libraries
+target_link_libraries(dz3 
+    PRIVATE
+    nlohmann_json::nlohmann_json
+    Boost::boost
 )
-target_link_libraries(boost_fusion_serialize_example PRIVATE nlohmann_json::nlohmann_json)
+
+# Include directories
+target_include_directories(dz3 
+    PRIVATE 
+    ${Boost_INCLUDE_DIRS}
+)
+
+# Add compiler flags
+target_compile_options(dz3 
+    PRIVATE 
+    -Wall 
+    -Wextra
+    -pedantic
+)

@@ -1,400 +1,327 @@
+#include <boost/fusion/include/adapt_struct.hpp>
+#include <boost/fusion/include/for_each.hpp>
+#include <boost/fusion/include/is_sequence.hpp>
+#include <boost/fusion/include/size.hpp>
+#include <boost/fusion/include/at_c.hpp>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
-#include <boost/fusion/include/define_struct.hpp>
-#include <boost/fusion/include/for_each.hpp>
-#include <boost/fusion/include/is_sequence.hpp>
-#include <boost/fusion/include/size.hpp>
-#include <boost/fusion/include/at_c.hpp>
-#include <boost/fusion/include/value_at.hpp>
-#include <boost/fusion/include/extension.hpp>
-#include <nlohmann/json.hpp>
+#include <ranges>
 
 // --------------------------------------------------------
-// 1) Определим структуру, чтобы на этапе компиляции
-//    проверять, что тип T допустим для сериализации.
-//    Допустимые типы:
-//        - int
-//        - float
-//        - std::string
-//        - std::vector<T>, где T сам допустимый
-//        - FusionT (вложенная boost::fusion структура)
+// 1) Define your structs within the pkg namespace
 // --------------------------------------------------------
 
-// Предварительные заготовки
-template <typename T, typename Enable = void>
-struct is_serializable_type : std::false_type {};
-
-// Базовые типы
-template <>
-struct is_serializable_type<int> : std::true_type {};
-
-template <>
-struct is_serializable_type<float> : std::true_type {};
-
-template <>
-struct is_serializable_type<std::string> : std::true_type {};
-
-// Для std::vector<T> нужно рекурсивно смотреть тип T
-template <typename T>
-struct is_serializable_type<std::vector<T>>
-    : std::conditional_t< is_serializable_type<T>::value, std::true_type, std::false_type >
-{};
-
-// Проверка, является ли T Fusion-последовательностью (структурой)
-namespace detail
-{
-    // Будем проверять, что все члены структуры T также сериализуемые
-    template <typename FusionT, std::size_t Index, std::size_t Size>
-    struct check_all_members_serializable
-    {
-        static constexpr bool value()
-        {
-            using MemberT = typename boost::fusion::result_of::value_at_c<FusionT, Index>::type;
-            // Если MemberT не сериализуемый — false
-            if constexpr (!is_serializable_type<MemberT>::value)
-            {
-                return false;
-            }
-            else
-            {
-                // Проверяем следующий
-                return check_all_members_serializable<FusionT, Index + 1, Size>::value();
-            }
-        }
+namespace pkg {
+    struct S1 {
+        int r0;
     };
 
-    // Специализация для выхода из рекурсии
-    template <typename FusionT, std::size_t Size>
-    struct check_all_members_serializable<FusionT, Size, Size>
-    {
-        static constexpr bool value() { return true; }
+    struct S2 {
+        float val;
+    };
+
+    struct S3 {
+        int r1;
+        std::string some_str;
+        std::vector<int> vals;
+        S2 s2_val;
+        std::vector<S1> s1_vals;
     };
 }
 
-// Специализация для boost::fusion структур (если T — fusion sequence)
+// --------------------------------------------------------
+// 2) Adapt the structs for Boost.Fusion
+// --------------------------------------------------------
+
+BOOST_FUSION_ADAPT_STRUCT(
+    pkg::S1,
+    r0
+)
+
+BOOST_FUSION_ADAPT_STRUCT(
+    pkg::S2,
+    val
+)
+
+BOOST_FUSION_ADAPT_STRUCT(
+    pkg::S3,
+    r1,
+    some_str,
+    vals,
+    s2_val,
+    s1_vals
+)
+
+// --------------------------------------------------------
+// 3) Define concepts for serializable types
+// --------------------------------------------------------
+
 template <typename T>
-struct is_serializable_type<
-    T,
-    std::enable_if_t<boost::fusion::traits::is_sequence<T>::value>
->
-{
-    static constexpr bool value = detail::check_all_members_serializable<T, 0, boost::fusion::result_of::size<T>::value>::value();
-};
+concept Serializable = requires(T t) {
+    { std::to_string(t) } -> std::same_as<std::string>;
+} || std::same_as<T, int> || std::same_as<T, float> || std::same_as<T, std::string> ||
+    std::is_same_v<T, std::vector<int>> || std::is_same_v<T, std::vector<float>> ||
+    std::is_same_v<T, std::vector<std::string>>;
+
+// For nested structs (FusionT)
+template <typename T>
+concept FusionStruct = boost::fusion::traits::is_sequence<T>::value;
 
 // --------------------------------------------------------
-// 2) Вспомогательные функции:
-//    - получение имени члена структуры по индексу
-//    - заполнение nlohmann::json из поля
-//    - чтение поля из nlohmann::json
+// 4) Serialize / Deserialize Templates Implementation
 // --------------------------------------------------------
 
-// Имя поля хранится внутри Boost.Fusion через extension::struct_member_name<T, N>
-template <typename FusionT, int N>
-std::string GetFieldName()
-{
-    return boost::fusion::extension::struct_member_name<FusionT, N>::call();
-}
+// Forward declarations for Serialize and Deserialize
+template <typename T>
+nlohmann::json Serialize(const T& obj);
 
-// Универсальная "запись поля" в JSON
-// (перегрузки для int, float, std::string, std::vector, fusion-struct)
+template <typename T>
+T Deserialize(const nlohmann::json& j);
+
+// --------------------------------------------------------
+// 5) Helper functions for JSON serialization/deserialization
+// --------------------------------------------------------
+
+// Base template declarations
 template <typename T>
 void WriteToJson(nlohmann::json& j, const std::string& key, const T& value);
 
-// Специализация для int, float, std::string
-template <>
-void WriteToJson<int>(nlohmann::json& j, const std::string& key, const int& value)
-{
-    j[key] = value;
-}
-
-template <>
-void WriteToJson<float>(nlohmann::json& j, const std::string& key, const float& value)
-{
-    j[key] = value;
-}
-
-template <>
-void WriteToJson<std::string>(nlohmann::json& j, const std::string& key, const std::string& value)
-{
-    j[key] = value;
-}
-
-// Специализация для std::vector<T>
-template <typename T>
-void WriteToJson(nlohmann::json& j, const std::string& key, const std::vector<T>& vec)
-{
-    nlohmann::json arr = nlohmann::json::array();
-    for (auto const& elem : vec)
-    {
-        // Рекурсивно пишем отдельный элемент
-        nlohmann::json element;
-        WriteToJson<T>(element, "_", elem);  
-        // т.к. element имеет временный ключ "_",
-        // нужно вытащить значение:
-        arr.push_back(element["_"]);
-    }
-    j[key] = arr;
-}
-
-// Специализация для вложенной fusion-структуры
-template <typename FusionT>
-void WriteToJson(nlohmann::json& j, const std::string& key, const FusionT& value,
-                 std::enable_if_t<boost::fusion::traits::is_sequence<FusionT>::value>* = 0);
-
-// Реализация
-template <typename FusionT>
-void WriteToJson(nlohmann::json& j, const std::string& key, const FusionT& value,
-                 std::enable_if_t<boost::fusion::traits::is_sequence<FusionT>::value>*)
-{
-    // Сериализуем через общий Serialize
-    j[key] = nlohmann::json::parse( Serialize(value) );
-}
-
-// Аналогично "чтение из JSON"
-// (перегрузки для int, float, std::string, std::vector<T>, fusion-struct)
 template <typename T>
 void ReadFromJson(const nlohmann::json& j, const std::string& key, T& value);
 
-template <>
-void ReadFromJson<int>(const nlohmann::json& j, const std::string& key, int& value)
-{
-    if (!j.contains(key)) {
-        throw std::runtime_error("Missing key '" + key + "'");
-    }
-    if (!j[key].is_number_integer()) {
-        throw std::runtime_error("Key '" + key + "' is not integer");
-    }
-    value = j[key].get<int>();
-}
+// --------------------------------------------------------
+// 6) Serialize / Deserialize Implementations
+// --------------------------------------------------------
 
-template <>
-void ReadFromJson<float>(const nlohmann::json& j, const std::string& key, float& value)
-{
-    if (!j.contains(key)) {
-        throw std::runtime_error("Missing key '" + key + "'");
-    }
-    if (!j[key].is_number_float() && !j[key].is_number_integer()) {
-        throw std::runtime_error("Key '" + key + "' is not float");
-    }
-    value = j[key].get<float>();
-}
-
-template <>
-void ReadFromJson<std::string>(const nlohmann::json& j, const std::string& key, std::string& value)
-{
-    if (!j.contains(key)) {
-        throw std::runtime_error("Missing key '" + key + "'");
-    }
-    if (!j[key].is_string()) {
-        throw std::runtime_error("Key '" + key + "' is not string");
-    }
-    value = j[key].get<std::string>();
-}
-
-// Для std::vector<T>
+// Serialize for Serializable types
 template <typename T>
-void ReadFromJson(const nlohmann::json& j, const std::string& key, std::vector<T>& vec)
-{
-    if (!j.contains(key)) {
-        throw std::runtime_error("Missing key '" + key + "'");
-    }
-    if (!j[key].is_array()) {
-        throw std::runtime_error("Key '" + key + "' is not array");
-    }
-    vec.clear();
-    for (auto const& element : j[key])
-    {
-        T tmp{};
-        // Рекурсивно читаем элемент
-        // Чтобы использовать ReadFromJson, "обманем" его ключом "_"
-        nlohmann::json tempJson;
-        tempJson["_"] = element;
-        ReadFromJson<T>(tempJson, "_", tmp);
-        vec.push_back(tmp);
-    }
-}
-
-// Для вложенной fusion-структуры
-template <typename FusionT>
-void ReadFromJson(const nlohmann::json& j, const std::string& key, FusionT& value,
-                  std::enable_if_t<boost::fusion::traits::is_sequence<FusionT>::value>* = 0)
-{
-    if (!j.contains(key)) {
-        throw std::runtime_error("Missing key '" + key + "'");
-    }
-    if (!j[key].is_object()) {
-        throw std::runtime_error("Key '" + key + "' is not object");
-    }
-    // Десериализуем через общий Deserialize
-    // Превращаем j[key] в строку и вызываем Deserialize<FusionT>
-    auto str = j[key].dump();
-    value = Deserialize<FusionT>(str);
-}
-
-// --------------------------------------------------------
-// 3) Serialize/Deserialize
-// --------------------------------------------------------
-
-// Обход полей FusionT и сериализация в JSON
-template <typename FusionT>
-std::string Serialize(const FusionT& obj)
-{
-    // compile-time проверка всех полей
-    static_assert(is_serializable_type<FusionT>::value,
-                  "FusionT contains non-serializable fields!");
-
+requires Serializable<T>
+nlohmann::json Serialize(const T& obj) {
     nlohmann::json j;
-    // Соберём названия всех полей, чтобы потом свериться (при желании)
-    // и чтобы последовательно их заполнить
-    constexpr auto size = boost::fusion::result_of::size<FusionT>::value;
-
-    // Функтор, который обходит каждое поле
-    auto visitor = [&](auto& field, auto index)
-    {
-        constexpr int i = decltype(index)::value;
-        // Имя поля
-        std::string key = GetFieldName<FusionT, i>();
-        // Запись поля field в j[key]
-        WriteToJson<std::decay_t<decltype(field)>>(j, key, field);
-    };
-
-    boost::fusion::for_each(obj, visitor);
-
-    return j.dump(); // Вернём строку JSON
+    WriteToJson(j, "value", obj);
+    return j;
 }
 
-// Обратная операция
-template <typename FusionT>
-FusionT Deserialize(std::string_view sv)
-{
-    // compile-time проверка
-    static_assert(is_serializable_type<FusionT>::value,
-                  "FusionT contains non-serializable fields!");
+// Deserialize for Serializable types
+template <typename T>
+requires Serializable<T>
+T Deserialize(const nlohmann::json& j) {
+    T obj;
+    ReadFromJson(j, "value", obj);
+    return obj;
+}
 
-    nlohmann::json j = nlohmann::json::parse(sv.begin(), sv.end());
+// Helper function to serialize using compile-time index sequence
+template <typename FusionT, std::size_t... Is>
+nlohmann::json SerializeImpl(const FusionT& obj, std::index_sequence<Is...>) {
+    nlohmann::json j;
+    // Fold expression to serialize each member
+    (void)std::initializer_list<int>{(
+        WriteToJson(j, boost::fusion::extension::struct_member_name<FusionT, Is>::call(),
+                    boost::fusion::at_c<Is>(obj)),
+        0
+    )...};
+    return j;
+}
 
-    // Проверим, что j — именно объект
-    if (!j.is_object()) {
-        throw std::runtime_error("Top-level JSON is not object");
-    }
+template <FusionStruct FusionT>
+nlohmann::json Serialize(const FusionT& obj) {
+    constexpr std::size_t size = boost::fusion::result_of::size<FusionT>::type::value;
+    return SerializeImpl(obj, std::make_index_sequence<size>{});
+}
 
-    // Проверка, что нет "лишних" ключей
-    // 1) Собираем все ключи в структуре
-    constexpr auto size = boost::fusion::result_of::size<FusionT>::value;
-    std::vector<std::string> structKeys;
-    structKeys.reserve(size);
+// Helper function to deserialize using compile-time index sequence
+template <typename FusionT, std::size_t... Is>
+FusionT DeserializeImpl(const nlohmann::json& j, std::index_sequence<Is...>) {
+    FusionT obj;
+    // Fold expression to deserialize each member
+    (void)std::initializer_list<int>{(
+        ReadFromJson(j, boost::fusion::extension::struct_member_name<FusionT, Is>::call(),
+                    boost::fusion::at_c<Is>(obj)),
+        0
+    )...};
+    return obj;
+}
 
-    boost::fusion::for_each(
-        FusionT{}, // пустой объект лишь для вызова GetFieldName
-        [&](auto& field, auto index)
-        {
-            constexpr int i = decltype(index)::value;
-            structKeys.push_back(GetFieldName<FusionT, i>());
-        }
-    );
-
-    // 2) Проверяем, что в j нет полей, которых нет в structKeys
-    for (auto it = j.begin(); it != j.end(); ++it)
-    {
-        const auto& key = it.key();
-        if (std::find(structKeys.begin(), structKeys.end(), key) == structKeys.end())
-        {
-            throw std::runtime_error("Unknown field in JSON: '" + key + "'");
-        }
-    }
-
-    FusionT result;
-    // Функтор, который будет читать поле в result
-    auto reader = [&](auto& field, auto index)
-    {
-        constexpr int i = decltype(index)::value;
-        std::string key = GetFieldName<FusionT, i>();
-        // Считываем
-        ReadFromJson<std::decay_t<decltype(field)>>(j, key, field);
-    };
-
-    boost::fusion::for_each(result, reader);
-
-    return result;
+template <FusionStruct FusionT>
+FusionT Deserialize(const nlohmann::json& j) {
+    constexpr std::size_t size = boost::fusion::result_of::size<FusionT>::type::value;
+    return DeserializeImpl<FusionT>(j, std::make_index_sequence<size>{});
 }
 
 // --------------------------------------------------------
-// 4) Пример использования + тесты
+// 7) Specializations for WriteToJson
 // --------------------------------------------------------
 
-// По условию, могут быть вот такие структуры:
-BOOST_FUSION_DEFINE_STRUCT(
-    (pkg),
-    S1,
-    (int, r0)
-)
+// Primitive and directly serializable types
+template <>
+void WriteToJson<int>(nlohmann::json& j, const std::string& key, const int& value) {
+    j[key] = value;
+}
 
-BOOST_FUSION_DEFINE_STRUCT(
-    (pkg),
-    S2,
-    (float, val)
-)
+template <>
+void WriteToJson<float>(nlohmann::json& j, const std::string& key, const float& value) {
+    j[key] = value;
+}
 
-BOOST_FUSION_DEFINE_STRUCT(
-    (pkg),
-    S3,
-    (int, r1)
-    (std::string, some_str)
-    (std::vector<int>, vals)
-    (S2, s2_val)
-    (std::vector<S1>, s1_vals)
-)
+template <>
+void WriteToJson<std::string>(nlohmann::json& j, const std::string& key, const std::string& value) {
+    j[key] = value;
+}
 
-int main()
-{
-    // Заполним тестовую структуру
-    pkg::S3 s3;
-    s3.r1 = 123;
-    s3.some_str = "abcde";
-    s3.vals = {1, 2, 3};
-    s3.s2_val.val = 1.22f;
-    s3.s1_vals = { pkg::S1{1}, pkg::S1{2} };
+template <>
+void WriteToJson<std::vector<int>>(nlohmann::json& j, const std::string& key, const std::vector<int>& vec) {
+    j[key] = vec;
+}
 
-    // Сериализуем
-    std::string jsonStr = Serialize(s3);
-    std::cout << "Serialized:\n" << jsonStr << "\n\n";
+template <>
+void WriteToJson<std::vector<float>>(nlohmann::json& j, const std::string& key, const std::vector<float>& vec) {
+    j[key] = vec;
+}
 
-    // Десериализуем обратно
-    auto s3_copy = Deserialize<pkg::S3>(jsonStr);
+template <>
+void WriteToJson<std::vector<std::string>>(nlohmann::json& j, const std::string& key, const std::vector<std::string>& vec) {
+    j[key] = vec;
+}
 
-    // Проверим, что поля совпали
-    std::cout << "Deserialized:\n"
-              << "r1 = " << s3_copy.r1 << "\n"
-              << "some_str = " << s3_copy.some_str << "\n"
-              << "vals = ";
-    for (auto v : s3_copy.vals) std::cout << v << " ";
-    std::cout << "\ns2_val.val = " << s3_copy.s2_val.val << "\n"
-              << "s1_vals = ";
-    for (auto& s1 : s3_copy.s1_vals) std::cout << s1.r0 << " ";
-    std::cout << "\n";
+// Serialize FusionStruct types
+template <FusionStruct FusionT>
+void WriteToJson(nlohmann::json& j, const std::string& key, const FusionT& value) {
+    j[key] = Serialize(value);
+}
 
-    // Попробуем "сломать" десериализацию: добавить лишнее поле
-    try
-    {
-        std::string badJson = R"({
-            "r1": 123,
-            "some_str": "abcde",
-            "vals": [1,2,3],
-            "s2_val": { "val": 1.22 },
-            "s1_vals": [{"r0":1}, {"r0":2}],
-            "extra_field": "boom"
-        })";
-        auto broken = Deserialize<pkg::S3>(badJson);
-        (void)broken; // Чтобы не ругался компилятор
+// Serialize containers of FusionStruct types
+template <typename T>
+requires FusionStruct<T>
+void WriteToJson(nlohmann::json& j, const std::string& key, const std::vector<T>& vec) {
+    nlohmann::json array = nlohmann::json::array();
+    for (const auto& item : vec) {
+        array.push_back(Serialize(item));
     }
-    catch (const std::exception& ex)
-    {
-        std::cout << "\nCaught expected error on unknown field: " << ex.what() << "\n";
-    }
+    j[key] = array;
+}
 
-    // Всё ок
+// --------------------------------------------------------
+// 8) Specializations for ReadFromJson
+// --------------------------------------------------------
+
+// Primitive and directly deserializable types
+template <>
+void ReadFromJson<int>(const nlohmann::json& j, const std::string& key, int& value) {
+    if (j.contains(key) && j[key].is_number_integer()) {
+        value = j[key].get<int>();
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+template <>
+void ReadFromJson<float>(const nlohmann::json& j, const std::string& key, float& value) {
+    if (j.contains(key) && (j[key].is_number_float() || j[key].is_number_integer())) {
+        value = j[key].get<float>();
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+template <>
+void ReadFromJson<std::string>(const nlohmann::json& j, const std::string& key, std::string& value) {
+    if (j.contains(key) && j[key].is_string()) {
+        value = j[key].get<std::string>();
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+template <>
+void ReadFromJson<std::vector<int>>(const nlohmann::json& j, const std::string& key, std::vector<int>& vec) {
+    if (j.contains(key) && j[key].is_array()) {
+        vec = j[key].get<std::vector<int>>();
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+template <>
+void ReadFromJson<std::vector<float>>(const nlohmann::json& j, const std::string& key, std::vector<float>& vec) {
+    if (j.contains(key) && j[key].is_array()) {
+        vec = j[key].get<std::vector<float>>();
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+template <>
+void ReadFromJson<std::vector<std::string>>(const nlohmann::json& j, const std::string& key, std::vector<std::string>& vec) {
+    if (j.contains(key) && j[key].is_array()) {
+        vec = j[key].get<std::vector<std::string>>();
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+// Deserialize FusionStruct types
+template <FusionStruct FusionT>
+void ReadFromJson(const nlohmann::json& j, const std::string& key, FusionT& value) {
+    if (j.contains(key) && j[key].is_object()) {
+        value = Deserialize<FusionT>(j[key]);
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+// Deserialize containers of FusionStruct types
+template <typename T>
+requires FusionStruct<T>
+void ReadFromJson(const nlohmann::json& j, const std::string& key, std::vector<T>& vec) {
+    if (j.contains(key) && j[key].is_array()) {
+        for (const auto& item : j[key]) {
+            vec.emplace_back(Deserialize<T>(item));
+        }
+    } else {
+        throw std::runtime_error("Invalid type or missing field: " + key);
+    }
+}
+
+// --------------------------------------------------------
+// 9) Example Usage and Tests
+// --------------------------------------------------------
+
+int main() {
+    try {
+        // Populate the test structure
+        pkg::S3 s3;
+        s3.r1 = 123;
+        s3.some_str = "abcde";
+        s3.vals = {1, 2, 3};
+        s3.s2_val.val = 1.22f;
+        s3.s1_vals = { pkg::S1{1}, pkg::S1{2} };
+
+        // Serialize
+        nlohmann::json jsonObj = Serialize(s3);
+        std::cout << "Serialized:\n" << jsonObj.dump(4) << "\n\n";
+
+        // Deserialize back
+        auto s3_copy = Deserialize<pkg::S3>(jsonObj);
+
+        // Verify that the fields match
+        std::cout << "Deserialized:\n"
+                  << "r1 = " << s3_copy.r1 << "\n"
+                  << "some_str = " << s3_copy.some_str << "\n"
+                  << "vals = ";
+        for (auto v : s3_copy.vals) std::cout << v << " ";
+        std::cout << "\ns2_val.val = " << s3_copy.s2_val.val << "\n"
+                  << "s1_vals = ";
+        for (auto v : s3_copy.s1_vals) std::cout << v.r0 << " ";
+        std::cout << std::endl;
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Error: " << ex.what() << std::endl;
+    }
     return 0;
 }
+
