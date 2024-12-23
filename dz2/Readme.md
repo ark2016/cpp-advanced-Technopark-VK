@@ -154,33 +154,33 @@ To check code coverage using your CMake setup and GCC, you can follow these step
 
 ### Проверка на покрытие
 
-   ```bash
-   mkdir build
-   cd build
-   cmake -DCOVERAGE=ON ..
-   make
-   ```
+```bash
+mkdir build
+cd build
+cmake -DCOVERAGE=ON ..
+make
+```
 
-   ```bash
-   ./test_crew_members
-   ./test_passengers
-   ./test_plane
-   ```
+```bash
+./test_crew_members
+./test_passengers
+./test_plane
+```
 
-     ```bash
-     lcov --capture --directory . --output-file coverage.info
-     ```
+```bash
+lcov --capture --directory . --output-file coverage.info
+```
+
+```bash
+lcov --remove coverage.info '/usr/*' '*/tests/*' --output-file coverage_filtered.info
+```
+```bash
+genhtml coverage_filtered.info --output-directory out
+```
      
-     ```bash
-     lcov --remove coverage.info '/usr/*' '*/tests/*' --output-file coverage_filtered.info
-     ```
-     ```bash
-     genhtml coverage_filtered.info --output-directory out
-     ```
-     
-   ```bash
-   xdg-open out/index.html
-   ```
+```bash
+xdg-open out/index.html
+```
 
 ![image](https://github.com/user-attachments/assets/a8ce7d25-bbd7-4be4-8535-b38f4ebd6a15)
 
